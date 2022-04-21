@@ -1,0 +1,328 @@
+---
+title: "Devoir Maison"
+author: "WU Laurent"
+date: "08/12/2021"
+output:
+  rmdformats::material: 
+    highlight: kate
+    
+---
+<style>
+body{
+text-align : justify
+}
+</style>
+
+# Analyse factorielle
+
+<br>
+
+
+```{r echo=FALSE, layout="1-body-outset"}
+library(rmarkdown)
+data <- read.csv("data (2).csv", encoding = "UTF-8", dec = ".")
+paged_table(data)
+```
+
+<center>
+
+*Importation du fichier CSV enregistré en UTF-8*
+
+</center>
+
+<br>
+
+Hypothèse fictive :
+
+> Le produit intérieur brut dépend du nombre de naissances domiciliées, du taux de chômage annuel et nombre de décès domiciliés
+
+<br>
+
+```{r echo=TRUE}
+str(data)
+```
+
+<br>
+
+On a ici **quatre variables** quantitatives socio-économiques :
+
+-   Nombre de naissances domiciliées
+-   Produit intérieur brut
+-   Taux de chômage annuel
+-   Nombre de décès domiciliés
+
+<br>
+
+<center>
+*Représentation graphique de la dataframe*
+```{r, echo=FALSE, fig.width=6,fig.height=6}
+rownames(data) <- data [,2]
+data <- data [,3:6]
+pairs(data)
+```
+
+*Matrice de nuage ("scatterplot matrix")*
+
+</center>
+
+<br>
+
+> On remarque qu'il est difficile de comparer les variables car les **échelles** ne sont pas les mêmes
+
+<br>
+
+## **Les valeurs de dispersion et centrales**
+
+<br>
+```{r, echo=FALSE}
+summary(data)
+```
+
+<br>
+
+> Les valeurs aberrantes et les *"NA"* influencent la **lisibilité** et **l'analyse**, il faut donc les supprimer.
+
+<br>
+
+```{r,echo=TRUE}
+# supression des communes et des NA  
+suppr <- c(6,16)
+data <- data[-suppr,]
+data[is.na(data$Taux.de.chômage.annuel.moyen.2020 ),]
+data <- data [!is.na(data$Taux.de.chômage.annuel.moyen.2020),]
+```
+
+<br>
+
+> On peut dorénavant calculer les **coefficients de variation** pour une première analyse
+
+<br>
+
+```{r, echo=FALSE}
+coeffVariation <- function (x) {mean(x)/sd(x)}
+coeff <- sapply(data, coeffVariation)
+sd <- sapply(data, sd)
+moy <- sapply(data, mean)
+tab <- cbind(moy,sd, coeff)
+round(tab,0)
+```
+
+<br>
+
+> Maintenant qu' on a les résultats, il faut donc pouvoir comparer les valeurs des variables *indépendamment de l'unité originelle*
+
+<br>
+
+<center>
+```{r echo=FALSE, fig.height=5, fig.width=5}
+data_cr <- scale (data)
+pairs(data_cr)
+```
+*matrice nuage de point (data_cr)*
+</center>
+
+<br>
+
+## **Les calculs sous R (Analyse en composantes principales)**
+
+<br>
+
+```{r, echo=FALSE}
+acp <- prcomp(data_cr)
+# par défaut direction négative ou inverse
+acp$rotation <- -1 * acp$rotation
+acp$rotation
+acp$sdev^2 / sum(acp$sdev^2)
+```
+
+<br>
+
+> On a **85%** de la variance pris en compte par le premier axe, **14%** de la variance pris en compte par le deuxième axe etc.  
+Donc le premier et deuxième axe peuvent représenter **99%** de la totalité de nos données
+
+> Sur nos données, on remarque également une forte valeur sur l'axe 2 pour le taux de chômage et une forte valeur sur l'axe 4 pour le PIB
+
+<br>
+
+```{r}
+head(acp$x*-1)
+```
+<br>
+
+> On a ci-dessus l'importation des axes pour les communes
+
+> Exemple : la Guadeloupe obtient une valeur de **2,66** pour le premier axe, **0,92** pour le deuxième axe etc.
+
+<br>
+
+<center>
+
+*Graphique de corrélation*
+
+```{r, echo=FALSE}
+biplot(acp, scale = 0)
+```
+
+*Biplot ACP*
+
+</center>
+
+<br>
+
+> Notre graphique se représente sur 2 axes. 
+
+> * La **direction** de chaque flèche illustre la variable correspondante
+> * Le **sens** de chaque flèche indique la corrélation positive ou négative de la variable correspondante 
+
+<br>
+
+> On remarque à travers le Biplot que les variables nombre de naissance, produit intérieur brut et nombre de décès sont corrélés **négativement** tandis que la variable taux de chômage est corrélé **positivement**. Il est donc intéressant de représenter les communes et visualiser ses influences dans la partie 2 (Classification)
+
+<br>
+
+# Classification
+
+<br>
+
+<center>
+
+*Diagramme de regroupement hiérarchique*
+
+```{r, echo=FALSE}
+
+#centrage et réduction
+data.cr <- scale(data, center = T, scale = T)
+
+# matrice des distances entre les individus
+data.d <- dist(data.cr)
+
+# classification
+cah <- hclust(data.d)
+
+# dendogramme
+plot(cah)
+
+# matérialisation des groupes
+rect.hclust(cah, k = 3)
+
+```
+
+</center>
+
+```{r, echo=TRUE}
+#découpage
+groupes.cah <- cutree(cah, k = 3)
+liste <- sort(groupes.cah)
+```
+
+> Le dendrogramme suggère une solution à **3 groupes**
+
+<br>
+
+## **Représentation graphique**
+
+<br>
+
+<center>
+
+```{r, echo= FALSE}
+#configuration du graphique
+acp <- princomp(data.cr, cor = T, scores = T)
+par(bg = "lightgrey", mar = c(1,1,1,1))
+plot(acp$scores[,1],acp$scores[,2], type = "p")
+text(acp$scores[,1],acp$scores[,2],col=c(topo.colors(3))[groupes.cah],cex
+     =1,labels=rownames(data))
+```
+
+*Représentation graphique des communes*
+
+</center>
+
+> Ici on a une représentation de chaque commune sur deux axes. Afin de juger la qualité de notre illustration, on a mis en place une coloration selon 3 groupes de communes en fonction du PIB. 
+<br>
+
+> On peut donc remarquer une certaine tendance :
+
+> * les communes avec un PIB élevé sont concentrés dans le groupe jaune (**forte corrélation**)
+* les communes avec un PIB moyen sont concentrés dans le groupe vert (**moyenne corrélation**)
+* les communes avec un PIB faible sont concentrés dans le groupe bleu (**faible corrélation**)
+
+# Bonus : Magrit (Cartes)
+
+```{r pressure, echo=FALSE, fig.cap="©WU Laurent", out.width = '100%'}
+knitr::include_graphics("carte_naissance.png")
+knitr::include_graphics("carte_pib.png")
+knitr::include_graphics("carte_deces.png")
+knitr::include_graphics("carte_chomage.png")
+```
+
+# Script 
+
+```{r, results='hide'}
+# Recherche des données
+data <- read.csv("data (2).csv", encoding = "UTF-8", dec = ".")
+str(data)
+rownames(data) <- data [,2]
+data <- data [, 3:6]
+pairs(data)
+
+# Normaliser sa donnée
+summary(data)
+rownames (data)
+
+# supression des communes et des NA  
+suppr <- c(6,16)
+data <- data[-suppr,]
+data[is.na(data$Taux.de.chômage.annuel.moyen.2020 ),]
+data <- data [!is.na(data$Taux.de.chômage.annuel.moyen.2020),]
+
+# Analyse des valeurs de dispersion/centrales
+coeffVariation <- function (x) {mean(x)/sd(x)}
+coeff <- sapply(data, coeffVariation)
+sd <- sapply(data, sd)
+moy <- sapply(data, mean)
+tab <- cbind(moy,sd, coeff)
+round(tab,0)
+
+# Centrage et réduction
+data_cr <- scale (data)
+pairs(data_cr)
+
+# axes factoriels 
+acp <- prcomp(data_cr)
+# par défaut direction négative ou inverse
+acp$rotation <- -1 * acp$rotation
+acp$rotation
+
+# importations des axes
+acp$sdev^2 / sum(acp$sdev^2)
+head(acp$x*-1)
+biplot(acp, scale = 0)
+
+# centrage et réduction
+data.cr <- scale(data, center = T, scale = T)
+
+# matrice des distances entre les individus
+data.d <- dist(data.cr)
+
+# classification
+cah <- hclust(data.d)
+
+# dendogramme
+plot(cah)
+
+# matérialisation des groupes
+rect.hclust(cah, k = 3)
+groupes.cah <- cutree(cah, k = 3)
+liste <- sort(groupes.cah)
+acp <- princomp(data.cr, cor = T, scores = T)
+par(bg = "lightgrey", mar = c(1,1,1,1))
+plot(acp$scores[,1],acp$scores[,2], type = "p")
+text(acp$scores[,1],acp$scores[,2],col=c(topo.colors(3))[groupes.cah],cex
+     =1,labels=rownames(data))
+
+
+```
+
+
+
